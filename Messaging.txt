@@ -1,0 +1,98 @@
+/**
+ * Handles preflight CORS requests (OPTIONS)
+ */
+function doOptions() {
+  return ContentService.createTextOutput("")
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeaders({
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type"
+    });
+}
+
+/**
+ * Creates a CORS-compatible response
+ */
+function createCORSResponse(responseData) {
+  return ContentService.createTextOutput(JSON.stringify(responseData))
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeaders({
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type"
+    });
+}
+
+/**
+ * Handles sending messages via Gmail for HR Helpdesk tickets
+ */
+function sendTicketMessage(ticketRow, message) {
+  try {
+    Logger.log(`✉️ Sending message for Ticket Row: ${ticketRow}`);
+
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('Open Tickets');
+    if (!sheet) {
+      Logger.log("❌ ERROR: Sheet 'Open Tickets' not found.");
+      return createCORSResponse({ success: false, error: "Sheet 'Open Tickets' not found." });
+    }
+
+    const data = sheet.getDataRange().getValues();
+    Logger.log(`🔍 Total Rows in Sheet: ${data.length}`);
+
+    if (ticketRow < 2 || ticketRow > data.length) { // Ensure row is valid (first row is headers)
+      Logger.log("❌ ERROR: Ticket row is out of range.");
+      return createCORSResponse({ success: false, error: "Invalid ticket row number." });
+    }
+
+    const row = data[ticketRow - 1];  // Convert row number to array index (zero-based)
+    Logger.log(`📝 Found Ticket Row ${ticketRow}: ${JSON.stringify(row)}`);
+
+    const userEmail = row[1];  // Column B (Index 1, Email)
+    let threadId = row[14];  // Column O (Index 14, Message Thread ID)
+
+    if (!userEmail) {
+      Logger.log("❌ ERROR: No email found for this ticket.");
+      return createCORSResponse({ success: false, error: "No email found for this ticket." });
+    }
+
+    let thread;
+    if (threadId) {
+      thread = GmailApp.getThreadById(threadId);
+      thread.reply(message);
+    } else {
+      const sentMessage = GmailApp.sendEmail(userEmail, `HR Helpdesk Ticket Update`, message);
+      threadId = sentMessage.getId();
+      sheet.getRange(ticketRow, 15).setValue(threadId);  // Save thread ID in Column O
+    }
+
+    Logger.log(`✅ Message sent successfully to ${userEmail}`);
+    return createCORSResponse({ success: true });
+
+  } catch (e) {
+    Logger.log("🚨 ERROR in sendTicketMessage: " + e.toString());
+    return createCORSResponse({ success: false, error: e.toString() });
+  }
+}
+
+/**
+ * Handles POST requests for messaging with proper CORS headers
+ */
+function doPost(e) {
+  try {
+    Logger.log("📩 Received POST request...");
+
+    const request = JSON.parse(e.postData.contents);
+    if (!request.ticketId || !request.message) {
+      return createCORSResponse({ success: false, error: "Missing parameters" });
+    }
+
+    const response = sendTicketMessage(request.ticketId, request.message);
+    return createCORSResponse(response);
+
+  } catch (error) {
+    Logger.log("🚨 ERROR in doPost: " + error.toString());
+    return createCORSResponse({ success: false, error: error.toString() });
+  }
+}

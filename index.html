@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Helpdesk - Ticket Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 10px;
+            background-color: #f4f4f4;
+        }
+        h2 {
+            text-align: center;
+        }
+        .ticket-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        .ticket-card {
+            width: 400px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            transition: transform 0.2s;
+            border-left: 8px solid; /* Priority color indicator */
+        }
+        .ticket-card:hover {
+            transform: scale(1.02);
+        }
+        .ticket-header, .ticket-body, .ticket-footer {
+            padding: 15px;
+        }
+        .ticket-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            font-weight: bold;
+            background-color: #007bff;
+            color: white;
+        }
+        .ticket-meta {
+            font-size: 12px;
+            font-weight: normal;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        .ticket-body {
+            background-color: #f9f9f9;
+        }
+        .ticket-footer {
+            background-color: #fff;
+            border-top: 1px solid #ddd;
+        }
+        .ticket-footer textarea {
+            width: 100%;
+            height: 50px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 5px;
+        }
+        .send-btn {
+            display: block;
+            width: 100%;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .send-btn:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <h2>HR Helpdesk - Open Tickets</h2>
+    <div class="ticket-container" id="ticketContainer"></div>
+
+    <script>
+        function loadTickets() {
+            console.log("🔄 Requesting tickets from getOpenTickets()...");
+            const webAppUrl = "<?= webAppUrl ?>";
+
+            fetch(`${webAppUrl}?action=getOpenTickets`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log("🚀 API Response from getOpenTickets():", data);
+                    if (!data.success || !data.tickets || data.tickets.length === 0) {
+                        console.warn("⚠️ No tickets found in response.");
+                        document.body.innerHTML += "<h3>No open tickets available.</h3>";
+                        return;
+                    }
+                    console.log("✅ Successfully retrieved tickets:", data.tickets);
+                    displayTickets(data.tickets);
+                })
+                .catch(error => {
+                    console.error("❌ Fetch error:", error);
+                    document.body.innerHTML += "<h3>Error retrieving tickets.</h3>";
+                });
+        }
+
+        function displayTickets(tickets) {
+            const container = document.getElementById('ticketContainer');
+            container.innerHTML = "";
+            
+            tickets.forEach(ticket => {
+                const card = document.createElement('div');
+                card.classList.add('ticket-card');
+                card.style.borderLeftColor = ticket.priorityColor; // Set priority color
+                
+                card.innerHTML = `
+                    <div class="ticket-header">
+                        <span class="ticket-meta">Created: ${new Date(ticket.timestamp).toLocaleString()}</span>
+                        <span>${ticket.fullName}</span>
+                        <span>${ticket.phoneNumber} | ${ticket.email}</span>
+                    </div>
+                    <div class="ticket-body">
+                        <p><strong>Issue:</strong> ${ticket.issue}</p>
+                        <p><strong>Details:</strong> ${ticket.details}</p>
+                    </div>
+                    <div class="ticket-footer">
+                        <textarea id="message-${ticket.id}" placeholder="Send a message..."></textarea>
+                        <button class="send-btn" onclick="sendMessage(${ticket.id})">Send</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        window.onload = loadTickets;
+    </script>
+</body>
+</html>

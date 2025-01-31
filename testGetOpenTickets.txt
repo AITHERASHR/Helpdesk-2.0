@@ -1,0 +1,56 @@
+function testGetOpenTickets() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID); // Using SPREADSHEET_ID from Config.gs
+    const sheet = ss.getSheetByName('Open Tickets');
+
+    if (!sheet) {
+      Logger.log("ERROR: Sheet 'Open Tickets' not found.");
+      return;
+    }
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) {
+      Logger.log("ERROR: No ticket data found.");
+      return;
+    }
+
+    const tickets = [];
+    for (let i = 1; i < data.length; i++) {  // Start at index 1 to skip headers
+      const row = data[i];
+
+      // Skip empty rows (if timestamp, issue, and request details are missing)
+      if (!row[0] || !row[4] || !row[6]) {
+        continue;
+      }
+
+      // Skip completed tickets (Column K, index 10, should not be TRUE)
+      if (row[10] === true) {
+        continue;
+      }
+
+      tickets.push({
+        id: i + 1, // Store row index for updates
+        timestamp: row[0], // Column A
+        fullName: row[2],  // Column C
+        issue: row[4],  // Column E
+        details: row[6],  // Column G
+        manager: row[11] || "", // Column L
+        reminder: row[12] || "", // Column M
+        threadId: row[14] || "" // Column O
+      });
+
+      // If you only want ONE ticket, break here
+      // break;
+    }
+
+    if (tickets.length === 0) {
+      Logger.log("INFO: No open tickets found.");
+    } else {
+      Logger.log("SUCCESS: Retrieved " + tickets.length + " open ticket(s).");
+      Logger.log(tickets);
+    }
+
+  } catch (e) {
+    Logger.log("ERROR: " + e.toString());
+  }
+}

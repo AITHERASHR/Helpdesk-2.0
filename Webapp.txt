@@ -1,0 +1,88 @@
+/**
+ * Google Apps Script Web App for HR Helpdesk Ticket Management
+ */
+
+/**
+ * Handles Web App requests: Serves HTML or fetches ticket data
+ */
+function doGet(e) {
+  Logger.log("🔄 Running doGet()...");
+
+  const template = HtmlService.createTemplateFromFile('index');
+  template.webAppUrl = ScriptApp.getService().getUrl();  // ✅ Dynamically get Web App URL
+
+  // If an API request is detected, return JSON instead of HTML
+  if (e && e.parameter && e.parameter.action === "getOpenTickets") {
+    Logger.log("📌 API Request Detected: Fetching Open Tickets...");
+    
+    const response = getOpenTickets(); // Call the function
+
+    return ContentService.createTextOutput(JSON.stringify(response, null, 2)) // ✅ Force JSON output
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Serve the HTML file for normal page loads
+  Logger.log("📌 Serving index.html");
+  return template.evaluate()
+    .setTitle('HR Helpdesk Ticket System');
+}
+
+/**
+ * Fetch all open tickets from Google Sheets
+ */
+function getOpenTickets() {
+  try {
+    Logger.log("🔄 Running getOpenTickets()...");
+
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);  
+    const sheet = ss.getSheetByName('Open Tickets');
+    
+    if (!sheet) {
+      Logger.log("❌ ERROR: Sheet 'Open Tickets' not found.");
+      return { error: "Sheet 'Open Tickets' not found." };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    
+    if (data.length <= 1) {
+      Logger.log("⚠️ INFO: No ticket data found.");
+      return { success: true, tickets: [] };
+    }
+
+    const tickets = [];
+    
+    for (let i = 1; i < data.length; i++) {  // Start at index 1 to skip headers
+      const row = data[i];
+
+      if (!row[0] || !row[4] || !row[6]) continue;
+      if (row[10] === true) continue;
+
+      tickets.push({
+        id: i + 1,
+        timestamp: row[0],
+        email: row[1],              
+        fullName: row[2],           
+        phoneNumber: row[3],        
+        issue: row[4],              
+        priority: row[5],           
+        details: row[6],            
+        supportingDocs: row[7],     
+        resolutionMethod: row[8],   
+        consent: row[9],            
+        manager: row[11] || "",     
+        reminderDays: row[12] || "",    
+        reminderSent: row[13] || "",    
+        threadId: row[14] || "",        
+        timeSinceCreated: row[15],
+        priorityColor: row[5] === "High" ? "#dc3545" : row[5] === "Medium" ? "#ffc107" : "#28a745"
+      });
+    }
+
+    Logger.log(`✅ SUCCESS: Returning ${tickets.length} open ticket(s).`);
+    return { success: true, tickets };
+
+  } catch (e) {
+    Logger.log("🚨 ERROR in getOpenTickets: " + e.toString());
+    return { error: e.toString() };
+  }
+}
